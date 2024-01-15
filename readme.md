@@ -1,4 +1,4 @@
-# OpenAI language model tester
+# AI Powered MCQ Generation
 
 ## Description
 
