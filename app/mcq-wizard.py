@@ -239,10 +239,10 @@ else:
     st.write("---")
 
     # User input sections
-    topic_content = st.text_area("Enter the content for question generation:", value=test_vals["content"], key="topic_content")
+    topic_content = st.text_area("Enter the content for question generation:", key="topic_content")
     original_content_only = st.checkbox("Focus only on the provided text", key="original_content_only")
     focus_text = "Please create questions based solely on the provided text." if original_content_only else "Please create questions that incorporate both the provided text as well as your knowledge of the topic."
-    learning_objective = st.text_area("Specify a learning objective (optional):", value=test_vals["learning_objective"], key="learning_objective")
+    learning_objective = st.text_area("Specify a learning objective (optional):", key="learning_objective")
 
     # Question configuration inputs
     questions_num = st.selectbox("Number of questions:", [1, 2, 3, 4, 5], key="questions_num")
