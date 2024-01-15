@@ -1,37 +1,55 @@
+import os
 import streamlit as st  
 import api_util as api 
 import logging 
 
-st.set_page_config(layout="wide")
+st.set_page_config(
+    initial_sidebar_state="collapsed")
 
 ## helper strings
+help_msg_model_option = "Controls which OpenAI model(s) to use. GPT-4 is more capable, but more expensive."
+help_msg_show_usage = "Display token usage and cost estimates for each query."
 help_msg_model_temperature = "Controls how creativity in AI's response"
 help_msg_model_top_p = "Prevents AI from giving certain answers that are too obvious"
 help_msg_model_freq_penalty = "Encourages AI to be more diverse in its answers"
 help_msg_model_presence_penalty = "Prevents AI from repeating itself too much"
 help_msg_max_token = "OpenAI sets a limit on the number of tokens, or individual units of text, that each language model can generate in a single response. For example, text-davinci-003 has a limit of 4000 tokens, while other models have a limit of 2000 tokens. It's important to note that this limit is inclusive of the length of the initial prompt and all messages in the chat session. To ensure the best results, adjust the max token per response based on your specific use case and anticipated dialogue count and length in a session."
-helper_app_start = "Enter an initial prompt and, optionally a follow-up message, and click on _Fetch AI Responses_ to get responses from the OpenAI models. Each time you click on _Fetch AI Responses_, the app will add the AI responses and the user messages to the chat histories of each model. You can also adjust the model parameters and keep adding follow-up messages to test the model further. To start a new test with fresh chat histories, click on _Start a new Test_. Please note the chat messages are not truncated, so you should pay attention to the total token count of your chat sessions and ensure they are within the maximum token limit of the models."
-helper_app_need_api_key = "Welcome! This app allows you to test the effectiveness of your prompts using OpenAI's text models: gpt-3.5-turbo, text-davinci-003, and gpt-4 (if you have access to it). To get started, simply enter your OpenAI API Key below."
+helper_app_start = '''This micro-app allows you to generate multiple-choice questions quickly and consistently. 
+
+It work with either GPT-3.5 Turbo, GPT-4, or both.
+
+Optionally, users can modify the AI configuration by opening the left sidebar.
+'''
+helper_app_need_api_key = "Welcome! This app allows you to test the effectiveness of your prompts using OpenAI's text models: gpt-3.5-turbo, and gpt-4 (if you have access to it). To get started, simply enter your OpenAI API Key below."
 helper_api_key_prompt = "The model comparison tool works best with pay-as-you-go API keys. Free trial API keys are limited to 3 requests a minute, not enough to test your prompts. For more information on OpenAI API rate limits, check [this link](https://platform.openai.com/docs/guides/rate-limits/overview).\n\n- Don't have an API key? No worries! Create one [here](https://platform.openai.com/account/api-keys).\n- Want to upgrade your free-trial API key? Just enter your billing information [here](https://platform.openai.com/account/billing/overview)."
 helper_api_key_placeholder = "Paste your OpenAI API key here (sk-...)"
+
+## Temporary testing values
+test_vals = {
+    "test": "Test",
+    "content": "Quantum mechanics is a fundamental theory in physics that describes the behavior of nature at and below the scale of atoms.[2]: 1.1  It is the foundation of all quantum physics including quantum chemistry, quantum field theory, quantum technology, and quantum information science. Classical physics, the collection of theories that existed before the advent of quantum mechanics, describes many aspects of nature at an ordinary (macroscopic) scale, but is not sufficient for describing them at small (atomic and subatomic) scales. Most theories in classical physics can be derived from quantum mechanics as an approximation valid at large (macroscopic) scale.[3] Unlike classical systems, quantum systems have bound states quantized to discrete values of energy, momentum, angular momentum, and other quantities; measurements of systems show characteristics of both particles and waves (wave–particle duality); and there are limits to how accurately the value of a physical quantity can be predicted prior to its measurement, given a complete set of initial conditions (the uncertainty principle). Quantum mechanics arose gradually from theories to explain observations that could not be reconciled with classical physics, such as Max Planck's solution in 1900 to the black-body radiation problem, and the correspondence between energy and frequency in Albert Einstein's 1905 paper, which explained the photoelectric effect. These early attempts to understand microscopic phenomena, now known as the old quantum theory, led to the full development of quantum mechanics in the mid-1920s by Niels Bohr, Erwin Schrödinger, Werner Heisenberg, Max Born, Paul Dirac and others. The modern theory is formulated in various specially developed mathematical formalisms. In one of them, a mathematical entity called the wave function provides information, in the form of probability amplitudes, about what measurements of a particle's energy, momentum, and other physical properties may yield.",
+    "learning_objective": "Compare quantum mechanics to other explanations of the universe that came before"
+}
 
 # Handlers 
 def handler_verify_key():
     """Handle OpenAI key verification"""
-    oai_api_key = st.session_state.open_ai_key_input
+    # oai_api_key = st.session_state.open_ai_key_input
+    oai_api_key = os.getenv('OPENAI_API_KEY')
     o = api.open_ai(api_key=oai_api_key, restart_sequence='|UR|', stop_sequence='|SP|')
     try: 
         # make a call to get available models 
         open_ai_models = o.get_models()
-        st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096), ('text-davinci-003', 4000)]
+        st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096)]
 
         # check to see if the API key has access to gpt-4
         for m in open_ai_models['data']: 
             if m['id'] == 'gpt-4':
-                st.session_state.openai_model_params = [('gpt-4', 8000), ('gpt-3.5-turbo', 4096), ('text-davinci-003', 4000)]
+                st.session_state.openai_model_params = [('gpt-4', 8000), ('gpt-3.5-turbo', 4096)]
         
         st.session_state.openai_models=[model_name for model_name, _ in st.session_state.openai_model_params]            
         st.session_state.openai_models_str = ', '.join(st.session_state.openai_models)
+
         st.session_state.chat_histories = {model: [] for model in st.session_state.openai_models}
         st.session_state.total_tokens = {model: 0 for model in st.session_state.openai_models}
         st.session_state.prompt_tokens = {model: 0 for model in st.session_state.openai_models}
@@ -84,32 +102,14 @@ def handler_fetch_model_responses():
                 st.error(f"{e}")
 
 
-    # Moderate follow-up message 
-    if "user_msg" in st.session_state and st.session_state.user_msg != '':
-        try:
-            moderation_result = o.get_moderation(user_message = st.session_state.user_msg)
-            if moderation_result['flagged'] == True:
-                user_query_moderated = False 
-                flagged_categories_str = ", ".join(moderation_result['flagged_categories'])
-                with openai_key_container:
-                    st.error(f"⚠️ Your most recent follow up message has been flagged by OpenAI's content moderation endpoint due to the following categories: {flagged_categories_str}.  \n" +
-                    "In order to comply with [OpenAI's usage policy](https://openai.com/policies/usage-policies), we cannot send this message to the models. Please modify your message and try again.")
-        except Exception as e: 
-            logging.error(f"{e}")
-            with openai_key_container:
-                st.error(f"{e}")
-
-
     if init_prompt and init_prompt != '' and user_query_moderated == True:
         for index, m in enumerate(st.session_state.openai_models): 
             progress_bar_container.progress(progress, text=f"Getting {m} responses")
-            if "user_msg" in st.session_state and st.session_state.user_msg != '':             
-                st.session_state.chat_histories[m].append({'role':'user', 'message':st.session_state.user_msg, 'created_date':api.get_current_time()})
             
             try:
                 b_r = o.get_ai_response(
                     model_config_dict={**model_config_template, 'model':m}, 
-                    init_prompt_msg=init_prompt, 
+                    init_prompt_msg=mcq_prompt, 
                     messages=st.session_state.chat_histories[m]
                 )
 
@@ -124,9 +124,6 @@ def handler_fetch_model_responses():
                 elif m == 'gpt-3.5-turbo':
                     # 0.002 / 1K total tokens 
                     st.session_state.conversation_cost[m] = 0.002 * st.session_state.total_tokens[m] / 1000
-                elif m == 'text-davinci-003':
-                    # 0.02 / 1K total tokens 
-                    st.session_state.conversation_cost[m] = 0.02 * st.session_state.total_tokens[m] / 1000
 
                 # update the progress bar 
                 progress = (index + 1) / len(st.session_state.openai_models)
@@ -159,35 +156,23 @@ def handler_start_new_test():
 def ui_sidebar():
     with st.sidebar:
 
+        st.sidebar.title("OpenAI Configuration")
+
         if "chat_histories" in st.session_state and len(st.session_state.chat_histories[st.session_state.openai_models[-1]]) > 0: 
-            st.button(label="Start a new Test", on_click=handler_start_new_test)
+            st.button(label="Clear Results", on_click=handler_start_new_test)
 
             st.write("---")
 
-        st.write("### Test Prameters")
 
-        st.text_area(
-            label="Initial prompt",
-            height=100,
-            max_chars=2000,
-            key="init_prompt",
-            disabled=st.session_state.test_disabled
-        )
-
-        st.text_area(
-            label="Follow up message",
-            height=100,
-            max_chars=1000,
-            key="user_msg",
-            disabled=st.session_state.test_disabled
-        )
+        st.multiselect(label="OpenAI Models", options=["GPT-4", "GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
+        st.checkbox(label="Show usage and cost estimate", key='show_usage', value=True, help=help_msg_show_usage, disabled=st.session_state.test_disabled)
         st.number_input(label="Response Token Limit", key='model_max_tokens', min_value=0, max_value=1000, value=300, step=50, help=help_msg_max_token, disabled=st.session_state.test_disabled)
         st.slider(label="Temperature", min_value=0.0, max_value=1.0, step=0.1, value=0.7, key='model_temperature', help=help_msg_model_temperature, disabled=st.session_state.test_disabled)
         st.slider(label="Top P", min_value=0.0, max_value=1.0, step=0.1, value=1.0, key='model_top_p', help=help_msg_model_top_p, disabled=st.session_state.test_disabled)
         st.slider(label="Frequency penalty", min_value=0.0, max_value=1.0, step=0.1, value=0.0, key='model_frequency_penalty', help=help_msg_model_freq_penalty, disabled=st.session_state.test_disabled)
         st.slider(label="Presence penalty", min_value=0.0, max_value=1.0, step=0.1, value=0.0, key='model_presence_penalty', help=help_msg_model_presence_penalty, disabled=st.session_state.test_disabled)   
         
-        st.button(label="Fetch AI Responses", on_click=handler_fetch_model_responses, disabled=st.session_state.test_disabled)      
+
 
   
 def ui_introduction():
@@ -205,12 +190,13 @@ def ui_test_result(progress_bar_container):
         for index, model_name in enumerate(st.session_state.openai_models):
             if len(st.session_state.chat_histories[model_name])>0:
                 with columns[index]:
-                    st.write(f'_Conversation with {model_name}_')
-                    st.write(f'Total tokens: {st.session_state.total_tokens[model_name]}')
-                    st.write(f'Prompt tokens: {st.session_state.prompt_tokens[model_name]}')
-                    st.write(f'Completion tokens: {st.session_state.completion_tokens[model_name]}')
-                    st.write(f'Total cost: ${st.session_state.conversation_cost[model_name]}')
-                    st.write("---")
+                    if 'show_usage' in st.session_state and st.session_state.show_usage:
+                        st.write(f'_Usage Statistics: {model_name}_')
+                        st.write(f'Total tokens: {st.session_state.total_tokens[model_name]}')
+                        st.write(f'Prompt tokens: {st.session_state.prompt_tokens[model_name]}')
+                        st.write(f'Completion tokens: {st.session_state.completion_tokens[model_name]}')
+                        st.write(f'Total cost: ${st.session_state.conversation_cost[model_name]}')
+                        st.write("---")
                     for message in st.session_state.chat_histories[model_name]:
                         if message['role'] == 'user': 
                             st.markdown(f"**User:**  \n{message['message']}")
@@ -224,19 +210,6 @@ def _ui_link(url, label, font_awesome_icon):
     return st.markdown(button_code, unsafe_allow_html=True)
 
 
-def ui_ctas():
-    col1, col2, col3, col4 = st.columns(4)
-    with col1: 
-        _ui_link(url="https://twitter.com/dclin", label="Let's connect", font_awesome_icon="fa-twitter")
-    with col2: 
-        _ui_link(url="https://www.buymeacoffee.com/gptlab", label="Buy me a coffee", font_awesome_icon="fa-coffee")
-    with col3:
-        _ui_link(url="https://gptlab.streamlit.app", label="Check out GPT Lab", font_awesome_icon="fa-android")
-    with col4:
-        _ui_link(url="https://gptlab.beehiiv.com/subscribe", label="Subscribe to news and updates", font_awesome_icon="fa-newspaper-o")
-
-
-
 
 ## initialize states 
 if "test_disabled" not in st.session_state: 
@@ -247,7 +220,7 @@ if "test_disabled" not in st.session_state:
 openai_key_container = st.container()
 ui_sidebar()
 
-st.title('OpenAI GPT Model Comparison Tool')
+st.title('MCQ Generator')
 if "oai_api_key" not in st.session_state: 
     st.write(helper_app_need_api_key)
     ui_introduction()
@@ -255,25 +228,95 @@ if "oai_api_key" not in st.session_state:
         st.empty()
 
     st.write("---")
-    ui_ctas()
+
 
 else:
-    if "openai_models_str" in st.session_state:
-        st.write(f"Playground to test prompts on following OpenAI models: {st.session_state.openai_models_str}")
 
-    st.write(helper_app_start)
+    st.markdown(helper_app_start)
 
-    ui_ctas()
+
 
     st.write("---")
 
-    with st.expander(label="Initial Prompt", expanded=True):
-        st.write(st.session_state.init_prompt)
+    # User input sections
+    topic_content = st.text_area("Enter the content for question generation:", value=test_vals["content"], key="topic_content")
+    original_content_only = st.checkbox("Focus only on the provided text", key="original_content_only")
+    focus_text = "Please create questions based solely on the provided text." if original_content_only else "Please create questions that incorporate both the provided text as well as your knowledge of the topic."
+    learning_objective = st.text_area("Specify a learning objective (optional):", value=test_vals["learning_objective"], key="learning_objective")
+
+    # Question configuration inputs
+    questions_num = st.selectbox("Number of questions:", [1, 2, 3, 4, 5], key="questions_num")
+    correct_ans_num = st.selectbox("Correct answers per question:", [1, 2, 3, 4], key="correct_ans_num")
+    question_level = st.selectbox("Question difficulty level:", ['Grade School', 'High School', 'University', 'Other'], index=2, key="question_level")
+    custom_question_level = st.text_input("Specify other level:", key="custom_question_level") if question_level == 'Other' else None
+    if custom_question_level:
+        question_level = custom_question_level
+
+    # Distractors configuration
+    distractors_num = st.selectbox("Number of distractors:", [1, 2, 3, 4, 5], index=2, key="distractors_num")
+    distractors_difficulty = st.selectbox("Distractors difficulty" , ['Normal', 'Obvious', 'Challenging'], key="distractors_difficulty")
+
+    # Additional Options for feedback and hints
+    learner_feedback = st.checkbox("Include Learner Feedback?", key="learner_feedback")
+    hints = st.checkbox("Include hints?", key="hints")
+    output_format = st.selectbox("Output format:", ['Plain Text', 'OLX'], key="output_format")
+
+    mcq_prompt2 = ""
+    mcq_prompt2 = (
+        "Please write " 
+        + str(questions_num) + " " 
+        + question_level + " level multiple-choice question(s), each with " 
+        + str(correct_ans_num) + " correct answer(s) and " 
+        + str(distractors_num) + " distractors, "
+        + "based on text that I will provide. \n"
+    )
+
+    if original_content_only:
+        mcq_prompt2 += "Please create questions based solely on the provided text. \n"
+    else:
+        mcq_prompt2 += "Please create questions that incorporate both the provided text as well as your knowledge of the topic. \n"
+    
+    if distractors_difficulty == "Obvious":
+        mcq_prompt2 += "Distractors should be obviously incorrect options. \n"
+    elif distractors_difficulty == "Challenging":
+        mcq_prompt2 += "Distractors should sound like they could be plausible, but are ultimately incorrect. \n"
+
+
+    if learning_objective:
+        mcq_prompt2 += "Focus on meeting the following learning objective(s) : " + learning_objective + ".\n"
+
+    if learner_feedback:
+        mcq_prompt2 += "Please provide a feedback section for each question that says why the correct answer is the best answer and the other options are incorrect. \n"
+
+    if hints:
+        mcq_prompt2 += "Also, include a hint for each question.\n"
+
+    if output_format == "OLX":
+        mcq_prompt2 += "Please write your MCQs in Open edX OLX format"
+
+    mcq_prompt2 += (
+        "Here is the text: \n"
+        + "===============\n"
+        + topic_content
+        )
+
+    with st.expander("View/edit full prompt"):
+        mcq_prompt = st.text_area(
+                label="Prompt",
+                height=100,
+                max_chars=2000,
+                value=mcq_prompt2,
+                key="init_prompt",
+                disabled=st.session_state.test_disabled
+            )
+
+    st.button(label="Generate MCQs", on_click=handler_fetch_model_responses, disabled=st.session_state.test_disabled)      
+
 
     with openai_key_container:
         st.empty()
 
-    st.write("##### Test chat sessions")
+    st.write("##### AI Response:")
 
     progress_bar_container = st.empty()
     ui_test_result(progress_bar_container)
