@@ -166,6 +166,13 @@ def ui_sidebar():
 
 
         st.multiselect(label="OpenAI Models", options=["GPT-4", "GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
+        # Check if 'GPT-4' is selected
+        if 'GPT-4' in st.session_state.model_options:
+            # If 'GPT-4' is selected, allow the user to input the API Key for another model
+            model_options = st.text_input("Enter API Key of any other OpenAI GPT Model:", key="custom_question_level")
+        else:
+            model_options = None
+
         st.checkbox(label="Show usage and cost estimate", key='show_usage', value=True, help=help_msg_show_usage, disabled=st.session_state.test_disabled)
         st.number_input(label="Response Token Limit", key='model_max_tokens', min_value=0, max_value=1000, value=300, step=50, help=help_msg_max_token, disabled=st.session_state.test_disabled)
         st.slider(label="Temperature", min_value=0.0, max_value=1.0, step=0.1, value=0.7, key='model_temperature', help=help_msg_model_temperature, disabled=st.session_state.test_disabled)
@@ -214,7 +221,7 @@ def _ui_link(url, label, font_awesome_icon):
 
 ## initialize states 
 if "test_disabled" not in st.session_state: 
-    st.session_state.test_disabled = True     
+    st.session_state.test_disabled = False    
 
 
 ## UI 
