@@ -3,12 +3,15 @@ import streamlit as st
 import api_util as api 
 import logging 
 
+logging.basicConfig(level=logging.INFO)
+
 st.set_page_config(
     initial_sidebar_state="collapsed")
 
 ## helper strings
 help_msg_model_option = "Controls which OpenAI model(s) to use. GPT-4 is more capable, but more expensive."
 help_msg_show_usage = "Display token usage and cost estimates for each query."
+help_msg_api_key = "This app runs by default on GPT 3.5-turbo, for free. To add the option to retreive responses using GPT-4, add your own key. If you add your own key, both GPT-3.5 and GPT-4 will use your key."
 help_msg_model_temperature = "Controls how creativity in AI's response"
 help_msg_model_top_p = "Prevents AI from giving certain answers that are too obvious"
 help_msg_model_freq_penalty = "Encourages AI to be more diverse in its answers"
@@ -164,14 +167,15 @@ def ui_sidebar():
 
             st.write("---")
 
+        model_options = st.text_input("Enter API Key to use GPT-4:", key="custom_question_level", help=help_msg_api_key)
 
-        st.multiselect(label="OpenAI Models", options=["GPT-4", "GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
         # Check if 'GPT-4' is selected
-        if 'GPT-4' in st.session_state.model_options:
-            # If 'GPT-4' is selected, allow the user to input the API Key for another model
-            model_options = st.text_input("Enter API Key of any other OpenAI GPT Model:", key="custom_question_level")
+        if model_options:
+            st.multiselect(label="OpenAI Models", options=["GPT-4", "GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
         else:
-            model_options = None
+            st.multiselect(label="OpenAI Models", options=["GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
+        
+        
 
         st.checkbox(label="Show usage and cost estimate", key='show_usage', value=True, help=help_msg_show_usage, disabled=st.session_state.test_disabled)
         st.number_input(label="Response Token Limit", key='model_max_tokens', min_value=0, max_value=1000, value=300, step=50, help=help_msg_max_token, disabled=st.session_state.test_disabled)
@@ -206,10 +210,11 @@ def ui_test_result(progress_bar_container):
                         st.write(f'Total cost: ${st.session_state.conversation_cost[model_name]}')
                         st.write("---")
                     for message in st.session_state.chat_histories[model_name]:
+                        # st.write(st.session_state.chat_histories[model_name])
                         if message['role'] == 'user': 
                             st.markdown(f"**User:**  \n{message['message']}")
                         else:
-                            st.markdown(f"**Model:**  \n{message['message']}")
+                            st.markdown(f"**AI Response:**  \n{message['message']}")
 
 
 def _ui_link(url, label, font_awesome_icon):
@@ -300,6 +305,23 @@ if hints:
 
 if output_format == "OLX":
     mcq_prompt2 += "Please write your MCQs in Open edX OLX format"
+
+mcq_prompt2 += """
+Format each question like the following:
+Question: [Question Text] \n
+A) [Answer A] \n
+B) [Answer B] \n
+....
+N) [Answer N] \n
+
+Solution: [Answer A, B...N]\n\n
+"""
+
+if learner_feedback:
+    mcq_prompt2 += "Feedback: [Feedback]\n\n"
+
+if hints:
+    mcq_prompt2 += "Hint: [Hint]\n\n"
 
 mcq_prompt2 += (
     "Here is the text: \n"
