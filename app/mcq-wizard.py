@@ -70,6 +70,7 @@ def handler_verify_key():
 
 
 def handler_fetch_model_responses():
+    handler_verify_key()
     """Fetches model responses"""
 
     model_config_template = {
@@ -220,106 +221,104 @@ if "test_disabled" not in st.session_state:
 openai_key_container = st.container()
 ui_sidebar()
 
+# st.title('MCQ Generator')
+# if "oai_api_key" not in st.session_state: 
+#     st.write(helper_app_need_api_key)
+#     ui_introduction()
+
+#     st.write("---")
+
+
+
+with openai_key_container:
+    st.empty()
+
 st.title('MCQ Generator')
-if "oai_api_key" not in st.session_state: 
-    st.write(helper_app_need_api_key)
-    ui_introduction()
-    with openai_key_container:
-        st.empty()
+st.write("---")
+st.markdown(helper_app_start)
+st.write("---")
 
-    st.write("---")
+# User input sections
+topic_content = st.text_area("Enter the content for question generation:", key="topic_content")
+original_content_only = st.checkbox("Focus only on the provided text", key="original_content_only")
+focus_text = "Please create questions based solely on the provided text." if original_content_only else "Please create questions that incorporate both the provided text as well as your knowledge of the topic."
+learning_objective = st.text_area("Specify a learning objective (optional):", key="learning_objective")
 
+# Question configuration inputs
+questions_num = st.selectbox("Number of questions:", [1, 2, 3, 4, 5], key="questions_num")
+correct_ans_num = st.selectbox("Correct answers per question:", [1, 2, 3, 4], key="correct_ans_num")
+question_level = st.selectbox("Question difficulty level:", ['Grade School', 'High School', 'University', 'Other'], index=2, key="question_level")
+custom_question_level = st.text_input("Specify other level:", key="custom_question_level") if question_level == 'Other' else None
+if custom_question_level:
+    question_level = custom_question_level
 
+# Distractors configuration
+distractors_num = st.selectbox("Number of distractors:", [1, 2, 3, 4, 5], index=2, key="distractors_num")
+distractors_difficulty = st.selectbox("Distractors difficulty" , ['Normal', 'Obvious', 'Challenging'], key="distractors_difficulty")
+
+# Additional Options for feedback and hints
+learner_feedback = st.checkbox("Include Learner Feedback?", key="learner_feedback")
+hints = st.checkbox("Include hints?", key="hints")
+output_format = st.selectbox("Output format:", ['Plain Text', 'OLX'], key="output_format")
+
+mcq_prompt2 = ""
+mcq_prompt2 = (
+    "Please write " 
+    + str(questions_num) + " " 
+    + question_level + " level multiple-choice question(s), each with " 
+    + str(correct_ans_num) + " correct answer(s) and " 
+    + str(distractors_num) + " distractors, "
+    + "based on text that I will provide. \n"
+)
+
+if original_content_only:
+    mcq_prompt2 += "Please create questions based solely on the provided text. \n"
 else:
+    mcq_prompt2 += "Please create questions that incorporate both the provided text as well as your knowledge of the topic. \n"
 
-    st.markdown(helper_app_start)
+if distractors_difficulty == "Obvious":
+    mcq_prompt2 += "Distractors should be obviously incorrect options. \n"
+elif distractors_difficulty == "Challenging":
+    mcq_prompt2 += "Distractors should sound like they could be plausible, but are ultimately incorrect. \n"
 
 
+if learning_objective:
+    mcq_prompt2 += "Focus on meeting the following learning objective(s) : " + learning_objective + ".\n"
 
-    st.write("---")
+if learner_feedback:
+    mcq_prompt2 += "Please provide a feedback section for each question that says why the correct answer is the best answer and the other options are incorrect. \n"
 
-    # User input sections
-    topic_content = st.text_area("Enter the content for question generation:", key="topic_content")
-    original_content_only = st.checkbox("Focus only on the provided text", key="original_content_only")
-    focus_text = "Please create questions based solely on the provided text." if original_content_only else "Please create questions that incorporate both the provided text as well as your knowledge of the topic."
-    learning_objective = st.text_area("Specify a learning objective (optional):", key="learning_objective")
+if hints:
+    mcq_prompt2 += "Also, include a hint for each question.\n"
 
-    # Question configuration inputs
-    questions_num = st.selectbox("Number of questions:", [1, 2, 3, 4, 5], key="questions_num")
-    correct_ans_num = st.selectbox("Correct answers per question:", [1, 2, 3, 4], key="correct_ans_num")
-    question_level = st.selectbox("Question difficulty level:", ['Grade School', 'High School', 'University', 'Other'], index=2, key="question_level")
-    custom_question_level = st.text_input("Specify other level:", key="custom_question_level") if question_level == 'Other' else None
-    if custom_question_level:
-        question_level = custom_question_level
+if output_format == "OLX":
+    mcq_prompt2 += "Please write your MCQs in Open edX OLX format"
 
-    # Distractors configuration
-    distractors_num = st.selectbox("Number of distractors:", [1, 2, 3, 4, 5], index=2, key="distractors_num")
-    distractors_difficulty = st.selectbox("Distractors difficulty" , ['Normal', 'Obvious', 'Challenging'], key="distractors_difficulty")
-
-    # Additional Options for feedback and hints
-    learner_feedback = st.checkbox("Include Learner Feedback?", key="learner_feedback")
-    hints = st.checkbox("Include hints?", key="hints")
-    output_format = st.selectbox("Output format:", ['Plain Text', 'OLX'], key="output_format")
-
-    mcq_prompt2 = ""
-    mcq_prompt2 = (
-        "Please write " 
-        + str(questions_num) + " " 
-        + question_level + " level multiple-choice question(s), each with " 
-        + str(correct_ans_num) + " correct answer(s) and " 
-        + str(distractors_num) + " distractors, "
-        + "based on text that I will provide. \n"
+mcq_prompt2 += (
+    "Here is the text: \n"
+    + "===============\n"
+    + topic_content
     )
 
-    if original_content_only:
-        mcq_prompt2 += "Please create questions based solely on the provided text. \n"
-    else:
-        mcq_prompt2 += "Please create questions that incorporate both the provided text as well as your knowledge of the topic. \n"
-    
-    if distractors_difficulty == "Obvious":
-        mcq_prompt2 += "Distractors should be obviously incorrect options. \n"
-    elif distractors_difficulty == "Challenging":
-        mcq_prompt2 += "Distractors should sound like they could be plausible, but are ultimately incorrect. \n"
-
-
-    if learning_objective:
-        mcq_prompt2 += "Focus on meeting the following learning objective(s) : " + learning_objective + ".\n"
-
-    if learner_feedback:
-        mcq_prompt2 += "Please provide a feedback section for each question that says why the correct answer is the best answer and the other options are incorrect. \n"
-
-    if hints:
-        mcq_prompt2 += "Also, include a hint for each question.\n"
-
-    if output_format == "OLX":
-        mcq_prompt2 += "Please write your MCQs in Open edX OLX format"
-
-    mcq_prompt2 += (
-        "Here is the text: \n"
-        + "===============\n"
-        + topic_content
+with st.expander("View/edit full prompt"):
+    mcq_prompt = st.text_area(
+            label="Prompt",
+            height=100,
+            max_chars=2000,
+            value=mcq_prompt2,
+            key="init_prompt",
+            disabled=st.session_state.test_disabled
         )
 
-    with st.expander("View/edit full prompt"):
-        mcq_prompt = st.text_area(
-                label="Prompt",
-                height=100,
-                max_chars=2000,
-                value=mcq_prompt2,
-                key="init_prompt",
-                disabled=st.session_state.test_disabled
-            )
-
-    st.button(label="Generate MCQs", on_click=handler_fetch_model_responses, disabled=st.session_state.test_disabled)      
+st.button(label="Generate MCQs", on_click=handler_fetch_model_responses, disabled=False)      
 
 
-    with openai_key_container:
-        st.empty()
+with openai_key_container:
+    st.empty()
 
-    st.write("##### AI Response:")
+st.write("##### AI Response:")
 
-    progress_bar_container = st.empty()
-    ui_test_result(progress_bar_container)
-
+progress_bar_container = st.empty()
+ui_test_result(progress_bar_container)
 
 
