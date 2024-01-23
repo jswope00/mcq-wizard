@@ -2,6 +2,8 @@ import os
 import streamlit as st  
 import api_util as api 
 import logging 
+import warnings
+warnings.filterwarnings("ignore")
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,10 +47,52 @@ def handler_verify_key():
         open_ai_models = o.get_models()
         st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096)]
 
+        # # check to see if the API key has access to gpt-4
+        # for m in open_ai_models['data']: 
+        #     if m['id'] == 'gpt-4':
+        #         st.session_state.openai_model_params = [('gpt-4', 8000), ('gpt-3.5-turbo', 4096)]
+        
+        st.session_state.openai_models=[model_name for model_name, _ in st.session_state.openai_model_params]            
+        st.session_state.openai_models_str = ', '.join(st.session_state.openai_models)
+
+        st.session_state.chat_histories = {model: [] for model in st.session_state.openai_models}
+        st.session_state.total_tokens = {model: 0 for model in st.session_state.openai_models}
+        st.session_state.prompt_tokens = {model: 0 for model in st.session_state.openai_models}
+        st.session_state.completion_tokens = {model: 0 for model in st.session_state.openai_models}
+        st.session_state.conversation_cost = {model: 0 for model in st.session_state.openai_models}
+
+
+        # store OpenAI API key in session states 
+        st.session_state.oai_api_key = oai_api_key
+
+        # enable the test
+        st.session_state.test_disabled = False 
+
+    except Exception as e: 
+        with openai_key_container: 
+            st.error(f"{e}")
+        logging.error(f"{e}")
+
+def handler_verify_gpt4_key():
+    """Handle OpenAI key verification"""
+    # oai_api_key = st.session_state.open_ai_key_input
+    oai_api_key = st.session_state.custom_question_level
+    o = api.open_ai(api_key=oai_api_key, restart_sequence='|UR|', stop_sequence='|SP|')
+
+    try: 
+        # make a call to get available models 
+        open_ai_models = o.get_models()
+        st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096), ('gpt-4', 8000)]
+
         # check to see if the API key has access to gpt-4
         for m in open_ai_models['data']: 
             if m['id'] == 'gpt-4':
-                st.session_state.openai_model_params = [('gpt-4', 8000), ('gpt-3.5-turbo', 4096)]
+                if st.session_state.model_options == ["GPT-4"]:
+                    st.session_state.openai_model_params = [('gpt-4', 8000)]
+                elif st.session_state.model_options == ["GPT 3.5-turbo"]:
+                    st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096)]
+                elif st.session_state.model_options == ["GPT-4", "GPT 3.5-turbo"] or ["GPT 3.5-turbo", "GPT-4"]:
+                    st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096),('gpt-4', 8000)]
         
         st.session_state.openai_models=[model_name for model_name, _ in st.session_state.openai_model_params]            
         st.session_state.openai_models_str = ', '.join(st.session_state.openai_models)
@@ -149,6 +193,83 @@ def handler_fetch_model_responses():
     progress_bar_container.empty()
 
 
+def handler_fetch_gpt4_model_responses():
+    handler_verify_gpt4_key()
+    """Fetches model responses"""
+
+    model_config_template = {
+        'max_tokens': st.session_state.model_max_tokens,
+        'temperature': st.session_state.model_temperature,
+        'top_p': st.session_state.model_top_p,
+        'frequency_penalty': st.session_state.model_frequency_penalty,
+        'presence_penalty': st.session_state.model_presence_penalty
+    }
+
+    o = api.open_ai(api_key=st.session_state.oai_api_key, restart_sequence='|UR|', stop_sequence='|SP|')
+    progress = 0 
+    user_query_moderated = True
+
+    init_prompt = st.session_state.init_prompt
+
+    # Moderate prompt  
+    if init_prompt and init_prompt != '':
+        try:
+            moderation_result = o.get_moderation(user_message = init_prompt)
+            if moderation_result['flagged'] == True:
+                user_query_moderated = False 
+                flagged_categories_str = ", ".join(moderation_result['flagged_categories'])
+                with openai_key_container:
+                    st.error(f"⚠️ Your prompt has been flagged by OpenAI's content moderation endpoint due to the following categories: {flagged_categories_str}.  \n" +
+                    "In order to comply with [OpenAI's usage policy](https://openai.com/policies/usage-policies), we cannot send this prompt to the models. Please modify your prompt and try again.")
+        except Exception as e: 
+            logging.error(f"{e}")
+            with openai_key_container:
+                st.error(f"{e}")
+
+
+    if init_prompt and init_prompt != '' and user_query_moderated == True:
+        for index, m in enumerate(st.session_state.openai_models): 
+            progress_bar_container.progress(progress, text=f"Getting {m} responses")
+            
+            try:
+                b_r = o.get_ai_response(
+                    model_config_dict={**model_config_template, 'model':m}, 
+                    init_prompt_msg=mcq_prompt, 
+                    messages=st.session_state.chat_histories[m]
+                )
+
+                st.session_state.chat_histories[m].append(b_r['messages'][-1])
+                st.session_state.total_tokens[m]=b_r['total_tokens']
+                st.session_state.prompt_tokens[m]=b_r['prompt_tokens']
+                st.session_state.completion_tokens[m]=b_r['completion_tokens']
+
+                if m == 'gpt-4':
+                    # $0.03 / 1K prompt tokens + $0.06 / 1K completion tokens
+                    st.session_state.conversation_cost[m] = 0.03 * st.session_state.prompt_tokens[m] / 1000 + 0.06 * st.session_state.completion_tokens[m] / 1000
+                elif m == 'gpt-3.5-turbo':
+                    # 0.002 / 1K total tokens 
+                    st.session_state.conversation_cost[m] = 0.002 * st.session_state.total_tokens[m] / 1000
+
+                # update the progress bar 
+                progress = (index + 1) / len(st.session_state.openai_models)
+                progress_bar_container.progress(progress, text=f"Getting {m} responses")
+
+            except o.OpenAIError as e:
+                logging.error(f"{e}")
+                with openai_key_container:
+                    if e.error_type == "RateLimitError" and str(e) == "OpenAI API Error: You exceeded your current quota, please check your plan and billing details.":
+                        st.error(f"{e}  \n  \n**Friendly reminder:** If you are using a free-trial OpenAI API key, this error is caused by the limited rate limits associated with the key. To optimize your experience, we recommend upgrading to the pay-as-you-go OpenAI plan.")
+                    else:
+                        st.error(f"{e}")
+
+            except Exception as e: 
+                with openai_key_container:
+                    st.error(f"{e}")
+                logging.error(f"{e}")
+                    
+    progress_bar_container.empty()
+
+
 def handler_start_new_test():
     """Start new test"""
     st.session_state.chat_histories = {model: [] for model in st.session_state.openai_models}
@@ -167,14 +288,26 @@ def ui_sidebar():
 
             st.write("---")
 
-        model_options = st.text_input("Enter API Key to use GPT-4:", key="custom_question_level", help=help_msg_api_key)
 
-        # Check if 'GPT-4' is selected
+
+
+        model_options = st.text_input("Enter API Key to use GPT-4:", key="custom_question_level", on_change=handler_verify_gpt4_key, placeholder=helper_api_key_placeholder, help= help_msg_api_key)
+
+
         if model_options:
-            st.multiselect(label="OpenAI Models", options=["GPT-4", "GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
+            st.multiselect(label="OpenAI Models", options=["GPT-4", "GPT 3.5-turbo"], key='model_options', default=['GPT 3.5-turbo','GPT-4'], help=help_msg_model_option, disabled=st.session_state.test_disabled)
         else:
             st.multiselect(label="OpenAI Models", options=["GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
         
+
+        # # Check if custom_question_level is in model_options is not empty
+        # if model_options and model_options in st.session_state.model_options:
+        #     st.multiselect(label="OpenAI Models", options=["GPT-4", "GPT 3.5-turbo"], key='model_options', default=['GPT-4'], help=help_msg_model_option, disabled=st.session_state.test_disabled)
+        # elif model_options and model_options not in st.session_state.model_options:
+        #     st.multiselect(label="OpenAI Models", options=["GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
+
+
+
         
 
         st.checkbox(label="Show usage and cost estimate", key='show_usage', value=True, help=help_msg_show_usage, disabled=st.session_state.test_disabled)
@@ -186,7 +319,7 @@ def ui_sidebar():
         
 
 
-  
+
 def ui_introduction():
     col1, col2 = st.columns([6,4])
     col1.text_input(label="Enter OpenAI API Key", key="open_ai_key_input", type="password", autocomplete="current-password", on_change=handler_verify_key, placeholder=helper_api_key_placeholder, help=helper_api_key_prompt)
@@ -260,9 +393,9 @@ learning_objective = st.text_area("Specify a learning objective (optional):", ke
 questions_num = st.selectbox("Number of questions:", [1, 2, 3, 4, 5], key="questions_num")
 correct_ans_num = st.selectbox("Correct answers per question:", [1, 2, 3, 4], key="correct_ans_num")
 question_level = st.selectbox("Question difficulty level:", ['Grade School', 'High School', 'University', 'Other'], index=2, key="question_level")
-custom_question_level = st.text_input("Specify other level:", key="custom_question_level") if question_level == 'Other' else None
-if custom_question_level:
-    question_level = custom_question_level
+custom_level = st.text_input("Specify other level:", key="custom_level") if question_level == 'Other' else None
+if custom_level:
+    question_level = custom_level
 
 # Distractors configuration
 distractors_num = st.selectbox("Number of distractors:", [1, 2, 3, 4, 5], index=2, key="distractors_num")
@@ -339,7 +472,12 @@ with st.expander("View/edit full prompt"):
             disabled=st.session_state.test_disabled
         )
 
-st.button(label="Generate MCQs", on_click=handler_fetch_model_responses, disabled=False)      
+# Update the st.button line
+st.button(
+    label="Generate MCQs",
+    on_click=handler_fetch_gpt4_model_responses if st.session_state.custom_question_level  else handler_fetch_model_responses,
+    disabled=False
+)
 
 
 with openai_key_container:
@@ -349,5 +487,4 @@ st.write("##### AI Response:")
 
 progress_bar_container = st.empty()
 ui_test_result(progress_bar_container)
-
 
