@@ -118,7 +118,7 @@ def handler_verify_gpt4_key():
 
 def handler_fetch_model_responses():
     handler_verify_key()
-    """Fetches model responses"""
+    # Fetches model responses
 
     model_config_template = {
         'max_tokens': st.session_state.model_max_tokens,
@@ -195,7 +195,7 @@ def handler_fetch_model_responses():
 
 def handler_fetch_gpt4_model_responses():
     handler_verify_gpt4_key()
-    """Fetches model responses"""
+    # Fetches model responses
 
     model_config_template = {
         'max_tokens': st.session_state.model_max_tokens,
@@ -384,10 +384,10 @@ st.markdown(helper_app_start)
 st.write("---")
 
 # User input sections
-topic_content = st.text_area("Enter the content for question generation:", key="topic_content")
+topic_content = st.text_area("Enter the content for question generation:", max_chars=7500, key="topic_content")
 original_content_only = st.checkbox("Focus only on the provided text", key="original_content_only")
 focus_text = "Please create questions based solely on the provided text." if original_content_only else "Please create questions that incorporate both the provided text as well as your knowledge of the topic."
-learning_objective = st.text_area("Specify a learning objective (optional):", key="learning_objective")
+learning_objective = st.text_area("Specify a learning objective (optional):", max_chars=1000, key="learning_objective")
 
 # Question configuration inputs
 questions_num = st.selectbox("Number of questions:", [1, 2, 3, 4, 5], key="questions_num")
