@@ -170,8 +170,9 @@ def handler_fetch_model_responses():
                     # $0.03 / 1K prompt tokens + $0.06 / 1K completion tokens
                     st.session_state.conversation_cost[m] = 0.03 * st.session_state.prompt_tokens[m] / 1000 + 0.06 * st.session_state.completion_tokens[m] / 1000
                 elif m == 'gpt-3.5-turbo':
-                    # 0.002 / 1K total tokens 
-                    st.session_state.conversation_cost[m] = 0.002 * st.session_state.total_tokens[m] / 1000
+                    # 0.5 / 1M prompt tokens + $1.50 / 1M output tokens
+                    # st.session_state.conversation_cost[m] = 0.002 * st.session_state.total_tokens[m] / 1000
+                    st.session_state.conversation_cost[m] = 0.5 * st.session_state.prompt_tokens[m] / 1000000 + 1.5 * st.session_state.completion_tokens[m] / 1000000
 
                 # update the progress bar 
                 progress = (index + 1) / len(st.session_state.openai_models)
