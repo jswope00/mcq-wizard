@@ -82,17 +82,17 @@ def handler_verify_gpt4_key():
     try: 
         # make a call to get available models 
         open_ai_models = o.get_models()
-        st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096), ('gpt-4-turbo-preview', 8000)]
+        st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096), ('gpt-4', 8000)]
 
         # check to see if the API key has access to gpt-4
         for m in open_ai_models['data']: 
-            if m['id'] == 'gpt-4-turbo-preview':
+            if m['id'] == 'gpt-4':
                 if st.session_state.model_options == ["GPT-4"]:
-                    st.session_state.openai_model_params = [('gpt-4-turbo-preview', 8000)]
+                    st.session_state.openai_model_params = [('gpt-4', 8000)]
                 elif st.session_state.model_options == ["GPT 3.5-turbo"]:
                     st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096)]
                 elif st.session_state.model_options == ["GPT-4", "GPT 3.5-turbo"] or ["GPT 3.5-turbo", "GPT-4"]:
-                    st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096),('gpt-4-turbo-preview', 8000)]
+                    st.session_state.openai_model_params = [('gpt-3.5-turbo', 4096),('gpt-4', 8000)]
         
         st.session_state.openai_models=[model_name for model_name, _ in st.session_state.openai_model_params]            
         st.session_state.openai_models_str = ', '.join(st.session_state.openai_models)
@@ -166,9 +166,9 @@ def handler_fetch_model_responses():
                 st.session_state.prompt_tokens[m]=b_r['prompt_tokens']
                 st.session_state.completion_tokens[m]=b_r['completion_tokens']
 
-                if m == 'gpt-4-turbo-preview':
+                if m == 'gpt-4':
                     # $0.03 / 1K prompt tokens + $0.06 / 1K completion tokens
-                    st.session_state.conversation_cost[m] = 0.01 * st.session_state.prompt_tokens[m] / 1000 + 0.03 * st.session_state.completion_tokens[m] / 1000
+                    st.session_state.conversation_cost[m] = 0.03 * st.session_state.prompt_tokens[m] / 1000 + 0.06 * st.session_state.completion_tokens[m] / 1000
                 elif m == 'gpt-3.5-turbo':
                     # 0.5 / 1M prompt tokens + $1.50 / 1M output tokens
                     # st.session_state.conversation_cost[m] = 0.002 * st.session_state.total_tokens[m] / 1000
@@ -244,7 +244,7 @@ def handler_fetch_gpt4_model_responses():
                 st.session_state.prompt_tokens[m]=b_r['prompt_tokens']
                 st.session_state.completion_tokens[m]=b_r['completion_tokens']
 
-                if m == 'gpt-4-turbo-preview':
+                if m == 'gpt-4':
                     # $0.03 / 1K prompt tokens + $0.06 / 1K completion tokens
                     st.session_state.conversation_cost[m] = 0.03 * st.session_state.prompt_tokens[m] / 1000 + 0.06 * st.session_state.completion_tokens[m] / 1000
                 elif m == 'gpt-3.5-turbo':
@@ -296,7 +296,7 @@ def ui_sidebar():
 
 
         if model_options:
-            st.multiselect(label="OpenAI Models", options=["GPT-4-turbo", "GPT 3.5-turbo"], key='model_options', default=['GPT 3.5-turbo','GPT-4-turbo'], help=help_msg_model_option, disabled=st.session_state.test_disabled)
+            st.multiselect(label="OpenAI Models", options=["GPT-4", "GPT 3.5-turbo"], key='model_options', default=['GPT 3.5-turbo','GPT-4'], help=help_msg_model_option, disabled=st.session_state.test_disabled)
         else:
             st.multiselect(label="OpenAI Models", options=["GPT 3.5-turbo"], default="GPT 3.5-turbo", key='model_options', help=help_msg_model_option, disabled=st.session_state.test_disabled)
         
@@ -467,7 +467,7 @@ with st.expander("View/edit full prompt"):
     mcq_prompt = st.text_area(
             label="Prompt",
             height=100,
-            max_chars=50000,
+            max_chars=2000,
             value=mcq_prompt2,
             key="init_prompt",
             disabled=st.session_state.test_disabled
