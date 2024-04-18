@@ -467,7 +467,7 @@ with st.expander("View/edit full prompt"):
     mcq_prompt = st.text_area(
             label="Prompt",
             height=100,
-            max_chars=2000,
+            max_chars=50000,
             value=mcq_prompt2,
             key="init_prompt",
             disabled=st.session_state.test_disabled
