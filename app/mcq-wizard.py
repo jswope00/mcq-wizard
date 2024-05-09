@@ -393,7 +393,7 @@ learning_objective = st.text_area("Specify a learning objective (optional):", ma
 # Question configuration inputs
 questions_num = st.selectbox("Number of questions:", [1, 2, 3, 4, 5], key="questions_num")
 correct_ans_num = st.selectbox("Correct answers per question:", [1, 2, 3, 4], key="correct_ans_num")
-question_level = st.selectbox("Question difficulty level:", ['Grade School', 'High School', 'University', 'Other'], index=2, key="question_level")
+question_level = st.selectbox("Question difficulty level:", ['Grade School', 'High School', 'University', 'Year 2 Medical School', 'Other'], index=3, key="question_level")
 custom_level = st.text_input("Specify other level:", key="custom_level") if question_level == 'Other' else None
 if custom_level:
     question_level = custom_level
@@ -405,7 +405,7 @@ distractors_difficulty = st.selectbox("Distractors difficulty" , ['Normal', 'Obv
 # Additional Options for feedback and hints
 learner_feedback = st.checkbox("Include Learner Feedback?", key="learner_feedback")
 hints = st.checkbox("Include hints?", key="hints")
-output_format = st.selectbox("Output format:", ['Plain Text', 'OLX'], key="output_format")
+output_format = st.selectbox("Output format:", ['Plain Text', 'USMLE Step 1 Format', 'OLX'], index=1, key="output_format")
 
 mcq_prompt2 = ""
 mcq_prompt2 = (
@@ -440,16 +440,94 @@ if hints:
 if output_format == "OLX":
     mcq_prompt2 += "Please write your MCQs in Open edX OLX format"
 
-mcq_prompt2 += """
-Format each question like the following:
-Question: [Question Text] \n
-A) [Answer A] \n
-B) [Answer B] \n
-....
-N) [Answer N] \n
+if output_format == "USMLE Step 1 Format":
+    mcq_prompt2 += """Please write your questions in USMLE Step 1 Exam format. The USMLE Step 1 Exam questions are typically structured as single-best-answer multiple-choice questions, and they are known for their clinical vignette format. Here’s a breakdown of their typical structure:
 
-Solution: [Answer A, B...N]\n\n
+Vignette: Each question starts with a vignette that provides a clinical scenario. This scenario describes a patient's medical history, symptoms, physical examination findings, and sometimes includes laboratory or imaging results. The vignette is designed to simulate a real-life situation that a physician might encounter.
+Lead-in Question: Following the vignette, there is a lead-in question. This is the actual question that asks the test-taker to diagnose the patient, select the best next step in management, or identify the underlying mechanism of the disease. The question is phrased to guide the examinee on what to focus on from the information provided in the vignette.
+Answer Options: Typically, there are five answer options labeled A through E. Only one of these is the correct or best answer, while the others are plausible but incorrect answers known as "distractors." The distractors are often related to the content of the vignette and are plausible enough to be potential answers, requiring a deep understanding and critical thinking to choose the correct option.
+Interdisciplinary Content: Questions often integrate knowledge across multiple basic science subjects, such as anatomy, biochemistry, pathology, pharmacology, and physiology, reflecting how these disciplines are interrelated in real clinical settings.
+This structure tests not only the examinee’s knowledge of fundamental sciences and their application but also their ability to make decisions in a clinical context by analyzing and synthesizing information provided in the vignettes.
+
+# EXAMPLES
+
+
+A 27-year-old woman comes to the office for counseling prior to conception. She states that a friend recently delivered a newborn with a neural tube defect and she wants to decrease her risk for having a child with this condition. She has no history of major medical illness and takes no medications. Physical examination shows no abnormalities. It is most appropriate to recommend that this patient begin supplementation with a vitamin that is a cofactor in which of the following processes?
+
+(A) Biosynthesis of nucleotides
+
+(B) Protein gamma glutamate carboxylation
+
+(C) Scavenging of free radicals
+
+(D) Transketolation
+
+(E) Triglyceride lipolysis
+
+(Answer: A)
+
+
+
+
+A study is designed to evaluate the feasibility of acupuncture in children with chronic headaches. Sixty children with chronic headaches are recruited for the study. In addition to their usual therapy, all children are treated with acupuncture three times a week for 2 months. Which of the following best describes this study design?
+
+(A) Case-control
+
+(B) Case series
+
+(C) Crossover
+
+(D) Cross-sectional
+
+(E) Historical cohort
+
+(F) Randomized clinical trial
+
+(Answer: B)
+
+
+
+A 26-year-old woman comes to the physician with her husband for counseling prior to conception. Her mother and three of her five siblings have type 2 diabetes mellitus. She is 170 cm (5 ft 7 in) tall and weighs 82 kg (180 lb); BMI is 28 kg/m2. Her blood pressure is 148/84 mm Hg. Physical examination shows no other abnormalities. Her fasting serum glucose concentration is 110 mg/dL. Which of the following is the most appropriate initial statement by the physician?
+
+(A) "Let’s review ways you can optimize your own health before conceiving."
+
+(B) "We should test you for islet cell antibodies before you try to conceive."
+
+(C) "You can conceive right away since you are in good health."
+
+(D) "You should avoid gaining weight during pregnancy because you are already overweight and at risk for type 2 diabetes mellitus."
+
+(E) "You should have no problems with your pregnancy if you start insulin therapy."
+
+(Answer: A)
+
+
+A 42-year-old nulligravid woman comes to the office because of a 1-year history of increasingly irregular vaginal bleeding and menstrual cramps. Previously, menses occurred at regular 28-day intervals and lasted 3 days with minimal cramping. During the past year, menstrual periods have occurred at 21- to 28-day intervals and lasted 10 to 12 days with increasingly severe pain. Use of acetaminophen and ibuprofen has provided minimal relief. She used an oral contraceptive from the age of 17 years to 40 years, but she discontinued use after she was diagnosed with deep venous thrombosis of the right lower extremity. She has no other history of serious illness and takes no medications. Her mother and sister underwent hysterectomy at the ages of 39 and 43 years, respectively, because of abnormal uterine bleeding. The patient is 163 cm (5 ft 4 in) tall and weighs 75 kg (165 lb); BMI is 28 kg/m2. Vital signs are within normal limits. Physical examination discloses an enlarged, irregularly shaped uterus with nodularity. Which of the following is the most likely cause of the patient's symptoms?
+
+ 
+
+(A) Benign monoclonal tumors arising from smooth muscle cells
+
+(B) Endometrium growing into the myometrium
+
+(C) Endometrium growing outside the uterus
+
+(D) Failure of functional ovarian cysts to regress after the release of an ovum
+
+(E) Ovarian stromal cells dividing and multiplying rapidly
 """
+
+if output_format != "USMLE Step 1 Format":
+    mcq_prompt2 += """
+    Format each question like the following:
+    Question: [Question Text] \n
+    A) [Answer A] \n
+    B) [Answer B] \n
+    ....
+    N) [Answer N] \n
+
+    Solution: [Answer A, B...N]\n\n
+    """
 
 if learner_feedback:
     mcq_prompt2 += "Feedback: [Feedback]\n\n"
